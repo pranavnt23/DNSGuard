@@ -1,0 +1,164 @@
+"""
+Data models and schemas for DNSGuard.
+Provides strongly-typed domain representations and enums shared across all modules.
+"""
+
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field, ConfigDict
+
+
+def current_utc_iso() -> str:
+    """Returns current UTC timestamp in standardized ISO-8601 format."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+# ------------------------------------------------------------------------------
+# Enumerations
+# ------------------------------------------------------------------------------
+
+class DetectionStatus(str, Enum):
+    """Lifecycle status of a DNS event through the detection pipeline."""
+    PENDING = "PENDING"
+    CLEAN = "CLEAN"
+    SUSPICIOUS = "SUSPICIOUS"
+    MALICIOUS = "MALICIOUS"
+
+
+class DetectionType(str, Enum):
+    """Specific categories of threat detection."""
+    DGA = "DGA"
+    TUNNELING = "TUNNELING"
+    SPOOFING = "SPOOFING"
+    ANOMALY_ML = "ANOMALY_ML"
+    RATE_BURST = "RATE_BURST"
+
+
+class AlertSeverity(str, Enum):
+    """Categorized impact severity for SOC analyst triage."""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class AlertStatus(str, Enum):
+    """Resolution lifecycle for an active security alert."""
+    NEW = "NEW"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    INVESTIGATING = "INVESTIGATING"
+    RESOLVED = "RESOLVED"
+    FALSE_POSITIVE = "FALSE_POSITIVE"
+
+
+class AuditEventType(str, Enum):
+    """Categories of security and operational events recorded in tamper-evident logs."""
+    SYSTEM_INIT = "SYSTEM_INIT"
+    CAPTURE_START = "CAPTURE_START"
+    CAPTURE_STOP = "CAPTURE_STOP"
+    DETECTION_RUN = "DETECTION_RUN"
+    ALERT_TRIGGERED = "ALERT_TRIGGERED"
+    ALERT_STATUS_UPDATE = "ALERT_STATUS_UPDATE"
+    INTEGRITY_VERIFIED = "INTEGRITY_VERIFIED"
+    INTEGRITY_VIOLATION = "INTEGRITY_VIOLATION"
+    CONFIG_CHANGE = "CONFIG_CHANGE"
+
+
+# ------------------------------------------------------------------------------
+# Extracted Features Schema (Shared by Member 1 feature extractors & ML)
+# ------------------------------------------------------------------------------
+
+class ExtractedFeatures(BaseModel):
+    """
+    Standard feature vector extracted from DNS query and response metadata.
+    Passed directly to Rule Engine and ML Classifiers.
+    """
+    domain_length: int = Field(default=0, description="Total length of queried domain name")
+    subdomain_count: int = Field(default=0, description="Count of sub-levels in the domain hierarchy")
+    entropy: float = Field(default=0.0, description="Shannon entropy of the domain string")
+    vowel_ratio: float = Field(default=0.0, description="Ratio of vowels to total characters")
+    digit_ratio: float = Field(default=0.0, description="Ratio of digits to total characters")
+    max_consonant_sequence: int = Field(default=0, description="Longest consecutive sequence of consonants")
+    has_hex_or_base32: bool = Field(default=False, description="Flag if label resembles hex or base32 payload")
+    query_type_code: int = Field(default=1, description="Numeric DNS RR type code (1=A, 16=TXT, etc.)")
+    ttl_value: Optional[int] = Field(default=None, description="Time-To-Live in seconds")
+    packet_size: int = Field(default=0, description="Wire size of the DNS frame in bytes")
+    response_count: int = Field(default=0, description="Number of answers returned in response")
+    query_rate_per_sec: float = Field(default=0.0, description="Sliding window request frequency for client")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ------------------------------------------------------------------------------
+# Database Entity Models
+# ------------------------------------------------------------------------------
+
+class DNSEvent(BaseModel):
+    """Representation of an ingested DNS query/response record."""
+    id: Optional[int] = None
+    timestamp: str = Field(default_factory=current_utc_iso)
+    client_identifier: str = Field(description="Pseudonymized host ID (HMAC-SHA256)")
+    raw_client_ip: Optional[str] = Field(default=None, description="AES-256 encrypted original IP")
+    queried_domain: str
+    query_type: str = Field(default="A")
+    response_code: Optional[str] = Field(default=None)
+    response_data: Optional[List[str]] = Field(default_factory=list)
+    ttl: Optional[int] = None
+    packet_length: Optional[int] = None
+    protocol: str = Field(default="UDP")
+    source_port: Optional[int] = None
+    destination_port: int = Field(default=53)
+    extracted_features: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    detection_status: DetectionStatus = Field(default=DetectionStatus.PENDING)
+    created_at: str = Field(default_factory=current_utc_iso)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DetectionResult(BaseModel):
+    """Output generated by a specific detector or rule."""
+    id: Optional[int] = None
+    dns_event_id: int
+    detection_type: DetectionType
+    score: float = Field(ge=0.0, le=100.0, description="0 to 100 risk contribution")
+    confidence: float = Field(ge=0.0, le=1.0, description="0.0 to 1.0 confidence score")
+    is_suspicious: bool = False
+    reason: str
+    model_or_rule: str
+    details: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    timestamp: str = Field(default_factory=current_utc_iso)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SecurityAlert(BaseModel):
+    """Consolidated actionable security alert for analysts and dashboards."""
+    id: Optional[int] = None
+    timestamp: str = Field(default_factory=current_utc_iso)
+    dns_event_id: Optional[int] = None
+    domain: str
+    client_identifier: str
+    threat_type: str
+    severity: AlertSeverity
+    risk_score: float = Field(ge=0.0, le=100.0)
+    explanation: str
+    status: AlertStatus = Field(default=AlertStatus.NEW)
+    mitigated: bool = False
+    created_at: str = Field(default_factory=current_utc_iso)
+    updated_at: str = Field(default_factory=current_utc_iso)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditLogEntry(BaseModel):
+    """Cryptographically chained tamper-evident audit record."""
+    id: Optional[int] = None
+    timestamp: str = Field(default_factory=current_utc_iso)
+    event_type: AuditEventType
+    user_or_component: str
+    details: str
+    previous_hash: str
+    entry_hash: str
+
+    model_config = ConfigDict(from_attributes=True)
