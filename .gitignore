@@ -62,9 +62,11 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Heavy network captures & temp data (preserve folder structure)
+# Heavy network captures & temp data (preserve folder structure and sample benchmark files)
 data/*.pcap
 data/*.pcapng
 data/*.csv
 !data/sample_*.csv
+!data/sample_*.json
+!data/sample_*.pcap
 !data/.gitkeep
