@@ -223,16 +223,43 @@ SYNTHETIC_DATASET: List[Dict[str, Any]] = [
 
     # --------------------------------------------------------------------------
     # 5. Synthetic DNS Cache Poisoning / Spoofing Indicators
+    # (Includes legitimate baseline followed by tampered resolution)
     # --------------------------------------------------------------------------
     {
-        "timestamp": "2026-10-04T10:00:40Z",
+        "timestamp": "2026-10-04T10:00:36Z",
         "client_ip": "192.168.1.130",
         "destination_ip": "8.8.8.8",
         "domain": "bank-secure-login.com",
         "query_type": "A",
         "response_code": "NOERROR",
+        "response_data": ["198.51.100.10"],
+        "ttl": 300,
+        "packet_length": 78,
+        "is_response": True,
+        "synthetic_label": "benign_bank_baseline",
+    },
+    {
+        "timestamp": "2026-10-04T10:00:38Z",
+        "client_ip": "192.168.1.130",
+        "destination_ip": "8.8.8.8",
+        "domain": "update-service.windows.net",
+        "query_type": "A",
+        "response_code": "NOERROR",
+        "response_data": ["20.112.52.29"],
+        "ttl": 300,
+        "packet_length": 82,
+        "is_response": True,
+        "synthetic_label": "benign_windows_baseline",
+    },
+    {
+        "timestamp": "2026-10-04T10:00:40Z",
+        "client_ip": "192.168.1.130",
+        "destination_ip": "198.51.100.200",  # Changed unauthorized resolver
+        "domain": "bank-secure-login.com",
+        "query_type": "A",
+        "response_code": "NOERROR",
         "response_data": ["203.0.113.88"],
-        "ttl": 1,  # Suspiciously abrupt TTL drop indicating cache poisoning attempt
+        "ttl": 1,  # Suspiciously abrupt TTL drop: 300s -> 1s + disjoint IP
         "packet_length": 78,
         "is_response": True,
         "synthetic_label": "synthetic_spoofing_ttl_drop",
@@ -240,7 +267,7 @@ SYNTHETIC_DATASET: List[Dict[str, Any]] = [
     {
         "timestamp": "2026-10-04T10:00:42Z",
         "client_ip": "192.168.1.130",
-        "destination_ip": "8.8.8.8",
+        "destination_ip": "198.51.100.200",  # Changed unauthorized resolver
         "domain": "update-service.windows.net",
         "query_type": "A",
         "response_code": "NOERROR",
@@ -249,6 +276,20 @@ SYNTHETIC_DATASET: List[Dict[str, Any]] = [
         "packet_length": 82,
         "is_response": True,
         "synthetic_label": "synthetic_spoofing_unauthoritative",
+    },
+    {
+        "timestamp": "2026-10-04T10:00:44Z",
+        "client_ip": "192.168.1.130",
+        "destination_ip": "8.8.8.8",
+        "domain": "dnssec-failed.secure-test.org",
+        "query_type": "A",
+        "response_code": "NOERROR",
+        "response_data": ["192.0.2.99"],
+        "ttl": 60,
+        "packet_length": 80,
+        "is_response": True,
+        "dnssec_status": "invalid",
+        "synthetic_label": "synthetic_spoofing_dnssec_failed",
     },
 
     # --------------------------------------------------------------------------

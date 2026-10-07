@@ -169,12 +169,24 @@ class DNSRepository:
             rows = cursor.fetchall()
             return [self._row_to_detection_result(r) for r in rows]
 
-    def list_detection_results(self, limit: int = 100, suspicious_only: bool = False) -> List[DetectionResult]:
-        """Lists recent detection results, optionally filtered to suspicious items."""
-        sql = "SELECT * FROM detection_results"
+    def list_detection_results(
+        self,
+        limit: int = 100,
+        suspicious_only: bool = False,
+        dns_event_id: Optional[int] = None,
+    ) -> List[DetectionResult]:
+        """Lists recent detection results, optionally filtered to suspicious items or a specific event."""
+        clauses = []
         params: List[Any] = []
         if suspicious_only:
-            sql += " WHERE is_suspicious = 1"
+            clauses.append("is_suspicious = 1")
+        if dns_event_id is not None:
+            clauses.append("dns_event_id = ?")
+            params.append(dns_event_id)
+
+        sql = "SELECT * FROM detection_results"
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY id DESC LIMIT ?;"
         params.append(limit)
 

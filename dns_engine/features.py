@@ -244,6 +244,7 @@ def extract_features(
         "query_type": qtype_upper,
         "query_type_code": qtype_code,
         "response_code": response_code or "UNKNOWN",
+        "response_data": response_data or [],
         "ttl": ttl,
         "response_count": answers_count,
         "packet_length": wire_size,
